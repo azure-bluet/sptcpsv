@@ -1,0 +1,13 @@
+mkdir /usr/lib/sptcpsv/
+cd utils
+make rmprv
+make
+make install
+make clean
+cd ..
+cd main
+make rmprv
+make
+make install
+make clean
+cd ..
