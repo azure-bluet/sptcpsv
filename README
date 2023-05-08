@@ -1,0 +1,7 @@
+I don't know why I created this repository...
+It is just a useless TCP server.
+It doesn't even support SSL/TLS by default.
+No safety is provided.
+No convenience is provided either.
+_Don't use it._
+All the files are under the GNU Affero General Public License.
