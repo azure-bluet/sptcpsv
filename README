@@ -3,5 +3,8 @@ It is just a useless TCP server.
 It doesn't even support SSL/TLS by default.
 No safety is provided.
 No convenience is provided either.
-_Don't use it._
+*Don't use it.*
 All the files are under the GNU Affero General Public License.
+Oh I forgot that, use gcc to compile.
+*sudo bash build*
+Only simple GNU/Linux support is provided.
