@@ -4,7 +4,10 @@
 #include <sys/socket.h>
 
 /* -I/usr/bin/sptcpsv */
-#include "logfile.h"
+#include <exitv.h>
+#include <logfile.h>
+#include <queue.h>
+#include <utils.h>
 
 struct pairskt
 {
@@ -12,9 +15,9 @@ struct pairskt
     void* token;
 };
 
-typedef struct pairskt* (*GetToken) (int, struct sockaddr);
+typedef struct pairskt* (*GetToken) (int, struct sockaddr_in);
 typedef void (*libinit) (struct Logger*);
-typedef struct pairskt* (*ConnHandler) (struct pairskt*, int);
+typedef struct pairskt* (*ConnHandler) (struct pairskt*, int, char*);
 
 /*
 The framework uses the function init to initialize the lib.
