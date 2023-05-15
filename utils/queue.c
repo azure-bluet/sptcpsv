@@ -6,7 +6,7 @@ typedef struct
     void** objs;
     int len;
     int start, end;
-    pthread_mutex_t lock, objc;
+    pthread_mutex_t lock, objc, pslc;
 } queue;
 
 typedef void (*destruct) (void*);
@@ -17,6 +17,8 @@ queue* new_q (int len)
     q -> len = len;
     q -> start = q -> end = 0;
     pthread_mutex_init (& (q -> lock), NULL);
+    pthread_mutex_init (& (q -> objc), NULL);
+    pthread_mutex_init (& (q -> pslc), NULL);
     q -> objs = calloc (len, sizeof (void*));
     return q;
 }
@@ -24,11 +26,13 @@ queue* new_q (int len)
 int push_q (queue* q, void* v)
 {
     int r = -1;
+    pthread_mutex_lock (& (q -> pslc));
     if (q -> start == (q -> end + 1) % q -> len) goto PUSH_RET;
     r = 0;
     q -> objs [q -> end ++] = v;
     q -> end %= q -> len;
     pthread_mutex_unlock (& (q -> objc));
+    pthread_mutex_unlock (& (q -> pslc));
     PUSH_RET:
     return r;
 }
@@ -52,6 +56,9 @@ void del_q (queue* q, destruct d)
     s = (q -> start > q -> end ? 0 : q -> end);
     for (i=q->start; i<e; i++) d (q -> objs [i]);
     for (i=s; i<q->end; i++) d (q -> objs [i]);
+    pthread_mutex_destroy (& (q -> lock));
+    pthread_mutex_destroy (& (q -> objc));
+    pthread_mutex_destroy (& (q -> pslc));
     free (q);
 }
 
