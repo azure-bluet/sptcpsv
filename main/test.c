@@ -7,9 +7,15 @@
 
 struct Logger* loggg;
 
-void init (struct Logger* l) { loggg = l; }
+int ports [2] = {80, 0};
 
-struct pairskt* get_token (int sf, struct sockaddr_in s)
+int* init (struct Logger* l)
+{
+    loggg = l;
+    return ports;
+}
+
+struct pairskt* get_token (int sf, struct sockaddr_in s, unsigned short port)
 {
     char* lgn = malloc (120);
     sprintf (lgn, "Client connection: %s FINISHED", inet_ntoa (s.sin_addr));

@@ -22,12 +22,76 @@
 #define LENQUEUE 131072
 #endif
 
+#ifndef MAX_LISTENERS
+#define MAX_LISTENERS 32768
+#endif
+
 ConnHandler handler;
 
 pthread_t thread_pool [THREAD_POOL_SIZE];
+pthread_t listeners [MAX_LISTENERS];
 queue* q;
 
 struct Logger logger;
+struct in_addr in;
+
+GetToken tkg;
+
+void* listener (void* arg)
+{
+    int sock, thm, skl;
+    unsigned short port;
+    struct sockaddr_in v4;
+    char thrn [140], prtn [100];
+    memset (&v4, 0, sizeof (v4));
+    port = * (unsigned short*) arg;
+    v4.sin_addr = in;
+    v4.sin_port = htons (port);
+    thm = * (int*) (arg + sizeof (unsigned short));
+    free (arg);
+    sprintf (thrn, "LISTENER/%d", thm);
+    sprintf (prtn, "Listener started at port %hu", port);
+    if ((sock = socket (AF_INET, SOCK_STREAM, 0)) == -1)
+    {
+        log_fatal (&logger, thrn, "Cannot create socket!");
+        return FAILED_SOCKET;
+    }
+    v4.sin_family = AF_INET;
+    if (bind (sock, (struct sockaddr*) &v4, sizeof (struct sockaddr_in)) == -1)
+    {
+        log_fatal (&logger, thrn, "Cannot bind socket!");
+        return FAILED_BIND;
+    }
+    if (listen (sock, 100) == -1)
+    {
+        log_fatal (&logger, thrn, "Cannot listen on the port!");
+        return FAILED_LISTEN;
+    }
+    log_info (&logger, thrn, prtn);
+    while (1)
+    {
+        struct sockaddr_in caddr;
+        char er [150];
+        int cls = accept (sock, (struct sockaddr*) &caddr, (socklen_t*) &skl);
+        if (cls == -1)
+        {
+            sprintf (er, "ERROR: %s", strerror (errno));
+            log_error (&logger, thrn, "Failed to accept a connection!");
+            log_error (&logger, thrn, er);
+            continue;
+        }
+        else
+        {
+            char inf [400];
+            sprintf (inf, "%s:%d connected!", inet_ntoa (caddr.sin_addr), ntohs
+                (caddr.sin_port));
+            log_info (&logger, thrn, inf);
+        }
+        struct pairskt* skt = tkg (cls, caddr, port);
+        push_q (q, (void*) skt);
+        log_info (&logger, thrn, "Pushed a new task to the queue");
+    }
+}
 
 void* thread (void* arg)
 {
@@ -51,44 +115,26 @@ int main (int argc, char** argv)
 {
     struct sockaddr_in v4;
     unsigned short port;
-    int sock, i;
-    struct in_addr addr;
+    int sock, i, skl = sizeof (struct sockaddr_in), *ports;
     void* lib;
+    void* t;
     libinit init;
-    GetToken tkg;
-    int skl = sizeof (struct sockaddr_in);
+    pthread_t tid;
     char* tmu = strtmu ();
     log_init (&logger, tmu);
     free (tmu);
     memset (&v4, 0, sizeof (v4));
+    struct in_addr in;
     switch (argc)
     {
         case 1:
-            v4.sin_addr.s_addr = htonl (INADDR_ANY);
-            v4.sin_port = htons (14444);
+            in.s_addr = htonl (INADDR_ANY);
             break;
         case 2:
-            sscanf (argv [1], "%hu", &port);
-            v4.sin_addr.s_addr = htonl (INADDR_ANY);
-            v4.sin_port = htons (port);
-            break;
-        case 3:
             tmu = malloc (80);
             sscanf (argv [1], "%s", tmu);
-            if (inet_aton (tmu, &(v4.sin_addr)) == 0)
-            {
-                sscanf (argv [2], "%s", tmu);
-                if (inet_aton (tmu, &(v4.sin_addr)) == 0)
-                {
-                    INV_PAR:
-                    log_fatal (&logger, "MAIN", "Something wrong happened while"
-                        " parsing arguments!");
-                    return INVALID_ARGUMENTS;
-                }
-                if (sscanf (argv [1], "%hu", &port) == 0) goto INV_PAR;
-            }
-            else if (sscanf (argv [1], "%hu", &port) == 0) goto INV_PAR;
-            v4.sin_port = htons (port);
+            if (inet_aton (tmu, &in) == 0) goto INV_PAR;
+            free (tmu);
             break;
         default: goto INV_PAR;
     };
@@ -106,11 +152,10 @@ int main (int argc, char** argv)
         log_fatal (&logger, "MAIN", "Illegal server program!");
         return INVALID_INPUT;
     }
-    init (&logger);
+    ports = init (&logger);
     q = new_q (LENQUEUE);
     for (i=0; i<THREAD_POOL_SIZE; i++)
     {
-        pthread_t tid;
         if (pthread_create (&tid, NULL, thread, (void*) i))
         {
             log_fatal (&logger, "MAIN", "Failed to create thread!");
@@ -118,44 +163,22 @@ int main (int argc, char** argv)
         }
         thread_pool [i] = tid;
     }
-    if ((sock = socket (AF_INET, SOCK_STREAM, 0)) == -1)
+    for (i=0; ports [i]; i++)
     {
-        log_fatal (&logger, "MAIN", "Cannot create socket!");
-        return FAILED_SOCKET;
-    }
-    v4.sin_family = AF_INET;
-    if (bind (sock, (struct sockaddr*) &v4, sizeof (struct sockaddr_in)) == -1)
-    {
-        log_fatal (&logger, "MAIN", "Cannot bind socket!");
-        return FAILED_BIND;
-    }
-    if (listen (sock, 100) == -1)
-    {
-        log_fatal (&logger, "MAIN", "Cannot listen on the port!");
-        return FAILED_LISTEN;
-    }
-    while (1)
-    {
-        struct sockaddr_in caddr;
-        char er [150];
-        int cls = accept (sock, (struct sockaddr*) &caddr, (socklen_t*) &skl);
-        if (cls == -1)
+        tmu = malloc (sizeof (unsigned short) + sizeof (int));
+        * (unsigned short*) tmu = ports [i];
+        * (int*) (tmu + sizeof (unsigned short)) = i;
+        if (pthread_create (&tid, NULL, listener, (void*) tmu))
         {
-            sprintf (er, "ERROR: %s", strerror (errno));
-            log_error (&logger, "MAIN", "Failed to accept a connection!");
-            log_error (&logger, "MAIN", er);
-            continue;
+            log_fatal (&logger, "MAIN", "Failed to create listener thread!");
+            return FAILED_CREATING_THREAD;
         }
-        else
-        {
-            char inf [400];
-            sprintf (inf, "%s:%d connected!", inet_ntoa (caddr.sin_addr), ntohs
-                (caddr.sin_port));
-            log_info (&logger, "MAIN", inf);
-        }
-        struct pairskt* skt = tkg (cls, caddr);
-        push_q (q, (void*) skt);
-        log_info (&logger, "MAIN", "Pushed a new task to the queue");
+        listeners [i] = tid;
     }
+    pthread_join (listeners [0], &t);
     return 0;
+    INV_PAR:
+    log_fatal (&logger, "MAIN", "Something wrong happened while"
+        " parsing arguments!");
+    return INVALID_ARGUMENTS;
 }
