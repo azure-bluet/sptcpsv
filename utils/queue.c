@@ -1,12 +1,13 @@
-#include <pthread.h>
 #include <stdlib.h>
+#include <threads.h>
 
 typedef struct
 {
     void** objs;
     int len;
     int start, end;
-    pthread_mutex_t lock, objc, pslc;
+    mtx_t lock, objc, pslc;
+    cnd_t lcob;
 } queue;
 
 typedef void (*destruct) (void*);
@@ -16,9 +17,10 @@ queue* new_q (int len)
     queue* q = malloc (sizeof (queue));
     q -> len = len;
     q -> start = q -> end = 0;
-    pthread_mutex_init (& (q -> lock), NULL);
-    pthread_mutex_init (& (q -> objc), NULL);
-    pthread_mutex_init (& (q -> pslc), NULL);
+    mtx_init (& (q -> lock), mtx_recursive);
+    mtx_init (& (q -> objc), mtx_recursive);
+    mtx_init (& (q -> pslc), mtx_recursive);
+    cnd_init (& (q -> lcob));
     q -> objs = calloc (len, sizeof (void*));
     return q;
 }
@@ -26,26 +28,30 @@ queue* new_q (int len)
 int push_q (queue* q, void* v)
 {
     int r = -1;
-    pthread_mutex_lock (& (q -> pslc));
+    mtx_lock (& (q -> pslc));
     if (q -> start == (q -> end + 1) % q -> len) goto PUSH_RET;
     r = 0;
     q -> objs [q -> end ++] = v;
     q -> end %= q -> len;
-    pthread_mutex_unlock (& (q -> objc));
-    pthread_mutex_unlock (& (q -> pslc));
+    cnd_broadcast (& (q -> lcob));
     PUSH_RET:
+    mtx_unlock (& (q -> pslc));
     return r;
 }
 
 void* pop_q (queue* q)
 {
     void* r = NULL;
-    pthread_mutex_lock (& (q -> lock));
-    if (q -> start == q -> end) pthread_mutex_lock (& (q -> objc));
+    mtx_lock (& (q -> lock));
+    if (q -> start == q -> end)
+    {
+        mtx_lock (& (q -> objc));
+        cnd_wait (& (q -> lcob), & (q -> objc));
+        mtx_unlock (& (q -> objc));
+    }
     r = q -> objs [q -> start ++];
     q -> start %= q -> len;
-    POP_RET:
-    pthread_mutex_unlock (& (q -> lock));
+    mtx_unlock (& (q -> lock));
     return r;
 }
 
@@ -56,9 +62,10 @@ void del_q (queue* q, destruct d)
     s = (q -> start > q -> end ? 0 : q -> end);
     for (i=q->start; i<e; i++) d (q -> objs [i]);
     for (i=s; i<q->end; i++) d (q -> objs [i]);
-    pthread_mutex_destroy (& (q -> lock));
-    pthread_mutex_destroy (& (q -> objc));
-    pthread_mutex_destroy (& (q -> pslc));
+    mtx_destroy (& (q -> lock));
+    mtx_destroy (& (q -> objc));
+    mtx_destroy (& (q -> pslc));
+    cnd_destroy (& (q -> lcob));
     free (q);
 }
 
