@@ -15,7 +15,7 @@
 #define debg
 #endif
 
-SSL_CTX* sptcpsv_ctx;
+static SSL_CTX* sptcpsv_ctx;
 
 int init_sptcpsv_ssl (const char* certfile, const char* prvkeyfile)
 {
