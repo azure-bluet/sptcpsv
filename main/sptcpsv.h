@@ -1,8 +1,6 @@
 #ifndef SPTCPSV
 #define SPTCPSV
 
-#include <sys/socket.h>
-
 /* -I/usr/bin/sptcpsv */
 #include <exitv.h>
 #include <logfile.h>
@@ -32,6 +30,7 @@ extern "C"
 typedef int* (*libinit) (struct Logger*);
 typedef struct pairskt* (*GetToken) (int, struct sockaddr_in, unsigned short);
 typedef struct pairskt* (*ConnHandler) (struct pairskt*, int, char*);
+typedef void (*serverclose) (void);
 
 /*
 The framework uses the function init to initialize the lib.

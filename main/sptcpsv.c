@@ -4,10 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <threads.h>
 #include <time.h>
 #include <unistd.h>
-
-#include <pthread.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -28,8 +27,8 @@
 
 ConnHandler handler;
 
-pthread_t thread_pool [THREAD_POOL_SIZE];
-pthread_t listeners [MAX_LISTENERS];
+thrd_t thread_pool [THREAD_POOL_SIZE];
+thrd_t listeners [MAX_LISTENERS];
 queue* q;
 
 struct Logger logger;
@@ -37,7 +36,7 @@ struct in_addr in;
 
 GetToken tkg;
 
-void* listener (void* arg)
+int listener (void* arg)
 {
     int sock, thm, skl;
     unsigned short port;
@@ -93,7 +92,7 @@ void* listener (void* arg)
     }
 }
 
-void* thread (void* arg)
+int thread (void* arg)
 {
     int thrn = (int) arg;
     char th [32];
@@ -117,9 +116,9 @@ int main (int argc, char** argv)
     unsigned short port;
     int sock, i, skl = sizeof (struct sockaddr_in), *ports;
     void* lib;
-    void* t;
+    int t;
     libinit init;
-    pthread_t tid;
+    thrd_t tid;
     char* tmu = strtmu ();
     log_init (&logger, tmu);
     free (tmu);
@@ -156,7 +155,7 @@ int main (int argc, char** argv)
     q = new_q (LENQUEUE);
     for (i=0; i<THREAD_POOL_SIZE; i++)
     {
-        if (pthread_create (&tid, NULL, thread, (void*) i))
+        if (thrd_create (&tid, thread, (void*) i))
         {
             log_fatal (&logger, "MAIN", "Failed to create thread!");
             return FAILED_CREATING_THREAD;
@@ -168,14 +167,14 @@ int main (int argc, char** argv)
         tmu = malloc (sizeof (unsigned short) + sizeof (int));
         * (unsigned short*) tmu = ports [i];
         * (int*) (tmu + sizeof (unsigned short)) = i;
-        if (pthread_create (&tid, NULL, listener, (void*) tmu))
+        if (thrd_create (&tid, listener, (void*) tmu))
         {
             log_fatal (&logger, "MAIN", "Failed to create listener thread!");
             return FAILED_CREATING_THREAD;
         }
         listeners [i] = tid;
     }
-    pthread_join (listeners [0], &t);
+    thrd_join (listeners [0], &t);
     return 0;
     INV_PAR:
     log_fatal (&logger, "MAIN", "Something wrong happened while"
