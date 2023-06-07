@@ -4,7 +4,7 @@ It doesn't even support SSL/TLS by default.
 No safety is provided.
 No convenience is provided either.
 **Don't use it.**
-All the files are under the GNU Affero General Public License.
+All the files are under the GNU Affero General Public License, unless a specific license is metioned in the file.
 Oh I forgot that, use gcc to compile.
 **sudo bash build**
 Only simple GNU/Linux support is provided.
