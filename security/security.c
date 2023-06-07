@@ -27,7 +27,7 @@ int init_sptcpsv_ssl (const char* certfile, const char* prvkeyfile)
     #endif
     sptcpsv_ctx = SSL_CTX_new (TLS_method ());
     if (sptcpsv_ctx == NULL) return 1;
-    SSL_CTX_set_options (sptcpsv_ctx, SSL_OP_ALL
+    SSL_CTX_set_options (sptcpsv_ctx, SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3
         | SSL_OP_NO_COMPRESSION | SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
     if (SSL_CTX_use_certificate_file (sptcpsv_ctx, certfile, SSL_FILETYPE_PEM) != 1) return 2;
     if (SSL_CTX_use_PrivateKey_file (sptcpsv_ctx, prvkeyfile, SSL_FILETYPE_PEM) != 1) return 2;
